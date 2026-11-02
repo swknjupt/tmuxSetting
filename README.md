@@ -25,7 +25,7 @@ bash tmuxSetting.sh --uninstall # 卸载(只移除标记块与面板目录, 其�
 1. 在 tmux 的 pane 里执行 `exec zsh`（或重开 shell）让 hook 生效
 2. 跑超过阈值的命令结束后即触发提醒；阈值在 `~/.zshrc` 中改 `TMUX_PANE_NOTIFY_MIN_SEC`
 3. tmux 3.2+ 按 `prefix + t` 打开全局 pane 监控面板（覆盖内置时钟）
-4. opencode 等 agent 的"一轮问答结束"推送增强方案见 [doc/opencode-agent-notify.md](doc/opencode-agent-notify.md)
+4. opencode 等 agent 的"一轮问答结束"推送增强方案见 [doc/agent-notify/](doc/agent-notify/README.md)
 
 ## 依赖
 
@@ -35,4 +35,7 @@ bash tmuxSetting.sh --uninstall # 卸载(只移除标记块与面板目录, 其�
 ## 文档
 
 - [doc/tmux-cheatsheet.md](doc/tmux-cheatsheet.md) — tmux 常用快捷键速查
-- [doc/opencode-agent-notify.md](doc/opencode-agent-notify.md) — opencode agent 完成提醒的三种方案
+- [doc/agent-notify/README.md](doc/agent-notify/README.md) — AI agent 完成提醒总览（按 agent 拆分）
+  - [opencode.md](doc/agent-notify/opencode.md) — opencode（已整理）
+  - [claude-code.md](doc/agent-notify/claude-code.md) — claude code（待补充）
+  - [codex.md](doc/agent-notify/codex.md) — codex（待补充）

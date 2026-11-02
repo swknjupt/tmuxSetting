@@ -1,13 +1,13 @@
-# opencode agent 场景的完成提醒方案
+# opencode 完成提醒
 
-> 背景：`tmuxSetting.sh` 的提醒链路（zsh hook → pane 标题 + BEL → `!` + 响铃 + prefix+t 面板）只能感知 **shell 命令边界**。opencode 这类 TUI agent 的"一轮问答结束、等待输入"发生在**单条命令内部**，hook 无法感知——必须由 opencode 侧发信号。本文整理三种方法。
+> 总览与统一信号协议见 [README.md](README.md)。本文只覆盖 opencode 专属做法。
 
 ## 方法对比总览
 
 | | ① 原生 attention 配置 | ② 现成插件 opencode-bell | ③ 自写插件 tpn-notify |
 |---|---|---|---|
 | 成本 | 改一行配置 | 改一行配置（npm 包） | ~30 行 JS 文件 |
-| 经过 tmux 链路 | ❌ | ✅ | ✅ |
+| 经 tmux 链路 | ❌ | ✅ | ✅ |
 | pane 粒度定位（`!` 标记） | ❌ | ✅ + 响铃 | ✅ + 响铃 |
 | 进 prefix+t 面板 done 区 | ❌ | ❌ | ✅ |
 | 跨 session 桌面通知 | ✅ | ❌ | ❌ |
@@ -117,15 +117,7 @@ export const TpnNotifyPlugin = async () => {
 
 ---
 
-## 与 tmux-pane-notify 三层机制的关系
-
-| 层 | 机制 | agent 场景是否覆盖 |
-|---|---|---|
-| ① pane 边框标题 | zsh hook 写标题 | ❌ hook 只在 shell 边界触发 |
-| ② BEL → `!` + 响铃 | hook 发裸 BEL | ❌ 同上 → **本文三法补齐** |
-| ③ prefix+t 面板 | `list-panes -a` 聚合 + 前台命令识别 🤖 分区 | 显示已覆盖；**推送靠本文三法** |
-
-## 验证清单
+## opencode 验证清单
 
 装好后（重启 opencode）：在 pane 里发一个简单问题 → 切到别的 window →
 
