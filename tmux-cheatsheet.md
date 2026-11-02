@@ -130,6 +130,8 @@ tmux source-file ~/.tmux.conf
 
 | 快捷键 | 说明 |
 |---|---|
-| `prefix t` | 弹出全局 pane 监控面板（tmux 3.2+，覆盖内置时钟）：树状展示 会话→窗口→pane 的 ✅ done / ⏳ running / idle 状态，1 秒自动刷新，按任意键关闭 |
+| `prefix t` | 弹出全局 pane 监控面板（tmux 3.2+，覆盖内置时钟）：树状展示 会话→窗口→pane 的 ✅ done / 🤖 agent / ⏳ running / idle 状态，1 秒自动刷新，按任意键关闭 |
+
+> AI agent pane（opencode / claude / codex 等）按前台命令自动归入 🤖 agent 分区，不会被误显示为 idle 或陈旧的 ✅ done。默认白名单：`opencode claude codex gemini aider crush droid`；可用 `TPN_AGENT_CMDS` 扩展（如 `tmux set-environment -g TPN_AGENT_CMDS "opencode node"` 后重开面板）。node/bun 默认不在名单内，以免 dev server 被误判为 agent。
 
 其余行为无需快捷键：在 pane 中跑超过阈值的命令（默认 5s）结束后，该 pane 边框显示 `✅ done`；若在后台 window，状态栏出现 `!` 标记并响铃，切过去后自动清除。

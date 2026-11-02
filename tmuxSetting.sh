@@ -3,6 +3,7 @@
 # 功能: pane 边框实时显示状态; 命令耗时 >= 阈值时, 该 pane 标题变为 "✅ done",
 #       并发送裸 BEL: 后台 window 在状态栏出现 '!' 标记(切过去才消失) + 终端响铃。
 #       注: 完成时若该 window 正被查看, tmux 按设计不置位 '!'(边框标题仍显示 ✅)
+#       监控面板按前台命令识别 AI agent(opencode 等), 归入 🤖 agent 分区(不被误显示为 idle)
 # 依赖: zsh + tmux (3.0a+); tmux 3.2+ 额外获得 prefix+t 全局状态面板(覆盖内置时钟)
 # 用法: bash tmuxSetting.sh             安装/升级(幂等)
 #       bash tmuxSetting.sh --uninstall 卸载(只移除标记块与面板目录, 其余配置保留)
@@ -115,10 +116,15 @@ mkdir -p "$HOME/.tmux-pane-notify"
 cat > "$HOME/.tmux-pane-notify/panel.sh" <<'EOF'
 #!/usr/bin/env bash
 # 全局 pane 实时监控面板 (tmux 3.2+ display-popup 内运行)
-# 树状: 状态分区 → 会话 → 窗口 → pane; 区内按完成时间倒序(新→旧)
+# 树状: 状态分区(✅ done / 🤖 agent / ⏳ running / idle) → 会话 → 窗口 → pane; 区内按完成时间倒序(新→旧)
 # 1 秒自动刷新, 按任意键退出
 
-C_G=$'\e[32m'; C_Y=$'\e[33m'; C_D=$'\e[2m'; C_R=$'\e[0m'
+C_G=$'\e[32m'; C_Y=$'\e[33m'; C_M=$'\e[35m'; C_C=$'\e[36m'; C_D=$'\e[2m'; C_R=$'\e[0m'
+# AI agent 识别: pane 前台命令(pane_current_command)精确匹配白名单 → 🤖 agent 分区
+# (不看标题 → agent pane 不会被误显示为 idle / 陈旧的 ✅ done)
+# 注: node/bun 等解释器名不进默认白名单, 以免把 dev server 误判为 agent;
+#     node 系 CLI(gemini-cli 等前台命令显示为 node)可扩展: export TPN_AGENT_CMDS="opencode node"
+AGENT_CMDS="${TPN_AGENT_CMDS:-opencode claude codex gemini aider crush droid}"
 # socket 选择: TMUX env 优先(pane 内运行); 否则若仅存在一个 socket 则用之(兼容 -L); 最后默认
 SOCK=()
 [ -n "${TMUX:-}" ] && SOCK=(-S "${TMUX%%,*}")
@@ -129,24 +135,30 @@ fi
 t() { tmux "${SOCK[@]}" "$@"; }
 
 while true; do
-  RECS=''; nd=0; nr=0; ni=0
-  while IFS='|' read -r sess win wname pidx title act; do
+  RECS=''; nd=0; nr=0; ni=0; na=0
+  while IFS='|' read -r cmd sess win wname pidx title act; do
     [ -z "$sess" ] && continue
-    case "$title" in
-      "✅ done"*) st=done; nd=$((nd+1)) ;;
-      ⏳*)        st=run;  nr=$((nr+1)) ;;
-      *)          st=idle; ni=$((ni+1)) ;;
-    esac
+    st=''
+    for a in $AGENT_CMDS; do  # agent 优先于标题判断
+      if [ "$cmd" = "$a" ]; then st=agent; na=$((na+1)); break; fi
+    done
+    if [ -z "$st" ]; then
+      case "$title" in
+        "✅ done"*) st=done; nd=$((nd+1)) ;;
+        ⏳*)        st=run;  nr=$((nr+1)) ;;
+        *)          st=idle; ni=$((ni+1)) ;;
+      esac
+    fi
     # 完成时间键: 解析标题尾部 HH:MM(:SS)?; 旧格式 HH:MM 秒位按 00
     tk=0
     [[ "$title" =~ ([0-9]{1,2}):([0-9]{2})(:([0-9]{2}))?[[:space:]]*$ ]] && \
       tk=$(( 10#${BASH_REMATCH[1]}*3600 + 10#${BASH_REMATCH[2]}*60 + 10#${BASH_REMATCH[4]:-0} ))
     RECS+="${st}|${sess}|${win}|${wname}|${tk}|${pidx}|${title}|${act}"$'\n'
-  done < <(t list-panes -a -F '#{session_name}|#{window_index}|#{window_name}|#{pane_index}|#{pane_title}|#{?pane_active,▶,}' 2>/dev/null)
+  done < <(t list-panes -a -F '#{pane_current_command}|#{session_name}|#{window_index}|#{window_name}|#{pane_index}|#{pane_title}|#{?pane_active,▶,}' 2>/dev/null)
 
   printf '\e[H\e[2J'
-  printf '%s tmux pane 监控  %s共%d | %s✅ done %d%s | %s⏳ running %d%s | idle %d   %s%s\n\n' \
-    "$C_D" "$C_R" $((nd+nr+ni)) "$C_G" "$nd" "$C_R" "$C_Y" "$nr" "$C_R" "$ni" "$(date +%H:%M:%S)" "$C_R"
+  printf '%s tmux pane 监控  %s共%d | %s✅ done %d%s | %s🤖 agent %d%s | %s⏳ running %d%s | idle %d   %s%s\n\n' \
+    "$C_D" "$C_R" $((nd+nr+ni+na)) "$C_G" "$nd" "$C_R" "$C_M" "$na" "$C_R" "$C_Y" "$nr" "$C_R" "$ni" "$(date +%H:%M:%S)" "$C_R"
 
   # 渲染状态分区: $1=state $2=标题 $3=颜色; 区内 会话→窗口→pane 树状, 完成时间倒序
   section() {
@@ -173,9 +185,10 @@ while true; do
     done <<< "$sessions"
   }
 
-  section done "✅ done (待认领)" "$C_G"
-  section run  "⏳ running"        "$C_Y"
-  section idle "idle"              "$C_D"
+  section done  "✅ done (待认领)"  "$C_G"
+  section agent "🤖 agent (运行中)" "$C_M"
+  section run   "⏳ running"        "$C_Y"
+  section idle  "idle"              "$C_D"
 
   printf '\n%s按任意键关闭 · 1s 自动刷新%s\n' "$C_D" "$C_R"
   read -t 1 -n 1 -s && exit 0
@@ -259,5 +272,5 @@ echo "  1. 在 tmux 的 pane 里执行: exec zsh   (或重开一个 shell) 让 h
 echo "  2. 跑超过 ${MIN_SEC}s 的命令结束后: 该 pane 边框显示 '✅ done ...';"
 echo "     若在后台 window, 状态栏该 window 出现 '!' 并响铃, 切过去后自动清除"
 echo "  3. 阈值可在 ~/.zshrc 中改 TMUX_PANE_NOTIFY_MIN_SEC"
-echo "  4. tmux 3.2+: 按 prefix+t 弹出全局 pane 状态面板 (覆盖内置时钟)"
+echo "  4. tmux 3.2+: 按 prefix+t 弹出全局 pane 状态面板 (覆盖内置时钟; AI agent pane 归入 🤖 分区)"
 echo "  5. 卸载: bash $0 --uninstall  (移除标记块与面板, 其余配置保留)"
