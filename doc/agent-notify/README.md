@@ -33,12 +33,17 @@ agent 在"回合结束 / 需要输入"时做两件事：
 |---|---|---|---|---|
 | opencode | 插件事件 `session.idle` / `question.asked` / `permission.asked` / `session.error` | JS 插件 / opencode-bell / 原生 attention | [opencode.md](opencode.md) | ✅ 已整理 |
 | claude code | hooks：`Stop`（回合结束）/ `Notification`（需输入） | `~/.claude/settings.json` 挂脚本（hook 进程不在 pane 前台，需经 pane tty 写入） | [claude-code.md](claude-code.md) | ⏳ 待补充 |
-| codex | `notify` 外部程序（事件 `agent-turn-complete`） | `~/.codex/config.toml` | [codex.md](codex.md) | ⏳ 待补充 |
+| codex | `UserPromptSubmit` / `Stop` / `Interrupt` hooks | `~/.codex/config.toml` 内联 hooks | [codex.md](codex.md) | ✅ 已整理 |
 | 其他（gemini cli 等） | — | — | — | 待定 |
 
-> 注：claude code / codex 的 hook / notify 进程**不在 pane 前台**，BEL 与标题需要先
+> 注：claude code / codex 的 hook（或 notify）进程**不在 pane 前台**，BEL 与标题需要先
 > `tmux display-message -p -t "$TMUX_PANE" '#{pane_tty}'` 找到 pane 的 tty 再写入；
 > opencode 插件则直接写 stdout 即可。这正是按 agent 分文档的原因。
+
+> Codex hooks 首次运行需要信任。hook 在 Codex 沙箱内写状态文件，pane 内 watcher
+> 在沙箱外同步到 tmux；因此 tmux socket 限制和 Codex 更新标题都不会冲掉 done。
+> tmux 内的 `codex` 由 shell 函数自动加 `--no-daemon`，确保 hook 属于具体 pane
+> 而不是共享 app-server daemon。
 
 ## 通用验证清单（任一 agent 接入后）
 
@@ -47,4 +52,5 @@ agent 在"回合结束 / 需要输入"时做两件事：
 - [ ] 回合结束时响铃 + 该 window 状态栏出现 `!`
 - [ ] pane 边框显示 `✅ done <agent名> HH:MM:SS`
 - [ ] prefix+t 面板 done（待认领）区出现该 pane，按时间倒序
+- [ ] 同一 window 的多个 agent pane 分别显示完成时间；下一条问题提交后对应 pane 回到 agent 区
 - [ ] （若配了①层）收到桌面通知/系统音
